@@ -1,4 +1,4 @@
-def call(Map configMap){
+/* def call(Map configMap){
     pipeline {
         agent {
                 node {
@@ -99,7 +99,7 @@ def call(Map configMap){
                     }
                 }
             } */
-            stage('Docker Build') {
+         /*    stage('Docker Build') {
                 steps {
                     script { 
                         withAWS(credentials: 'aws-creds', region: 'us-east-1') {
@@ -143,6 +143,66 @@ def call(Map configMap){
             echo 'hi, this is failure'
         }
     }
+} */
+                 
+   def call(Map configMap) {
+
+    node('AGENT-1') {
+
+        // Define variables
+        env.REGION  = "us-east-1"
+        env.ACC_ID  = "784585544641"
+        env.PROJECT = configMap.get('project')
+        env.COMPONENT = configMap.get('component')
+
+        try {
+
+            stage('Read package.json') {
+                def pkg = readJSON file: 'package.json'
+                env.appVersion = pkg.version
+                echo "Project Version: ${env.appVersion}"
+            }
+
+            stage('Install Dependencies') {
+                sh 'npm install'
+            }
+
+            stage('Unit Testing') {
+                sh 'echo "unit testing"'
+            }
+
+            stage('Docker Build') {
+                withAWS(credentials: 'aws-creds', region: env.REGION) {
+                    sh """
+                        aws ecr get-login-password --region ${REGION} \
+                        | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.${REGION}.amazonaws.com
+
+                        docker build -t ${ACC_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} .
+                        docker push ${ACC_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
+                    """
+                }
+            }
+
+            stage('Trigger Deploy') {
+                if (params.deploy == true) {
+                    build job: "../${env.COMPONENT}-deploy",
+                        parameters: [
+                            string(name: 'appVersion', value: "${env.appVersion}"),
+                            string(name: 'deploy_to', value: 'dev')
+                        ],
+                        wait: false,
+                        propagate: false
+                }
+            }
+
+        } catch (err) {
+            echo "Pipeline Failed: ${err}"
+            throw err
+
+        } finally {
+            echo "Cleaning workspace..."
+            deleteDir()
+        }
+    }
 }
-                
-            
+         
