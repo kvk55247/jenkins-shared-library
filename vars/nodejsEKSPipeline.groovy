@@ -9,8 +9,8 @@ def call(Map configMap){
             appVersion = ''
             REGION = "us-east-1"
             ACC_ID = "784585544641"
-            PROJECT = "roboshop"
-            COMPONENT = "catalogue"
+            PROJECT = configMap.get('project')
+            COMPONENT = configMap.get('component')
 
         }
         options {
