@@ -1,8 +1,6 @@
 def call(Map configMap) {
     pipeline {
-        agent {
-            label 'AGENT-1'
-        }
+        agent { label 'AGENT-1' }
 
         environment {
             REGION = "us-east-1"
@@ -16,7 +14,7 @@ def call(Map configMap) {
         }
 
         parameters {
-            booleanParam(name: 'deploy', defaultValue: false, description: 'Toggle this value')
+            booleanParam(name: 'deploy', defaultValue: false, description: 'Toggle deployment')
         }
 
         stages {
@@ -31,39 +29,35 @@ def call(Map configMap) {
                 }
             }
 
-           stage('Read package.json') {
+            stage('Read package.json') {
                 steps {
                     script {
-                        def appVersion = readJSON(file: 'package.json').version
-                        echo "Package version: ${appVersion}"
-                        // Pass this local variable to Docker stage
-                        env.APP_VERSION = appVersion  // optional, if you want to reuse env elsewhere
+                        def packageJson = readJSON file: 'package.json'
+                        env.appVersion = packageJson.version
+                        echo "Package version: ${env.appVersion}"
                     }
                 }
             }
 
             stage('Install Dependencies') {
-                steps {
-                    sh 'npm install'
-                }
+                steps { sh 'npm install' }
             }
 
             stage('Unit Testing') {
-                steps {
-                    sh 'echo "Running unit tests..."'
-                }
+                steps { sh 'echo "Running unit tests..."' }
             }
 
-           stage('Docker Build & Push') {
+            stage('Docker Build & Push') {
                 steps {
                     script {
-                        def imageName = "${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com/${env.PROJECT}/${env.COMPONENT}:${env.APP_VERSION}"
+                        def imageName = "${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com/${env.PROJECT}/${env.COMPONENT}:${env.appVersion}"
                         echo "Building image: ${imageName}"
-                        
+
                         withAWS(credentials: 'aws-creds', region: env.REGION) {
                             sh """
                                 aws ecr get-login-password --region ${env.REGION} \
                                     | docker login --username AWS --password-stdin ${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com
+
                                 docker build -t ${imageName} .
                                 docker push ${imageName}
                             """
@@ -72,23 +66,20 @@ def call(Map configMap) {
                 }
             }
 
-
             stage('Trigger Deploy') {
                 when { expression { params.deploy } }
                 steps {
                     script {
-                        def cdJob = "../${env.COMPONENT}-deploy"
-                        build job: cdJob,
-                            parameters: [
-                                string(name: 'appVersion', value: env.appVersion),
-                                string(name: 'deploy_to', value: 'dev')
-                            ],
-                            propagate: false,
-                            wait: false
+                        build job: "../${env.COMPONENT}-cd",
+                              parameters: [
+                                  string(name: 'appVersion', value: env.appVersion),
+                                  string(name: 'deploy_to', value: 'dev')
+                              ],
+                              propagate: false,
+                              wait: false
                     }
                 }
             }
-
 
         }
 
@@ -97,17 +88,11 @@ def call(Map configMap) {
                 echo 'Cleaning workspace...'
                 deleteDir()
             }
-            success {
-                echo 'Pipeline succeeded!'
-            }
-            failure {
-                echo 'Pipeline failed!'
-            }
+            success { echo 'Pipeline succeeded!' }
+            failure { echo 'Pipeline failed!' }
         }
     }
 }
-
-
 
 
 
