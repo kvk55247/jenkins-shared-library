@@ -70,21 +70,21 @@ def call(Map configMap) {
             }
 
             stage('Trigger Deploy') {
-                when {
-                    expression { params.deploy }
-                }
+                when { expression { params.deploy } }
                 steps {
                     script {
-                        build job: "../${env.COMPONENT}-cd",
-                              parameters: [
-                                  string(name: 'appVersion', value: env.appVersion),
-                                  string(name: 'deploy_to', value: 'dev')
-                              ],
-                              propagate: false,
-                              wait: false
+                        def cdJob = "../${env.COMPONENT}-cd"
+                        build job: cdJob,
+                            parameters: [
+                                string(name: 'appVersion', value: env.appVersion),
+                                string(name: 'deploy_to', value: 'dev')
+                            ],
+                            propagate: false,
+                            wait: false
                     }
                 }
             }
+
 
         }
 
