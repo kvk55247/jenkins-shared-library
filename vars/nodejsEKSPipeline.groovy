@@ -77,7 +77,7 @@ def call(Map configMap) {
                 when { expression { params.deploy } }
                 steps {
                     script {
-                        def cdJob = "../${env.COMPONENT}-cd"
+                        def cdJob = "../${env.COMPONENT}-deploy"
                         build job: cdJob,
                             parameters: [
                                 string(name: 'appVersion', value: env.appVersion),
