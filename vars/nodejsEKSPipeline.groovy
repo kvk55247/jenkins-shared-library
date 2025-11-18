@@ -31,12 +31,13 @@ def call(Map configMap) {
                 }
             }
 
-            stage('Read package.json') {
+           stage('Read package.json') {
                 steps {
                     script {
-                        def packageJson = readJSON file: 'package.json'
-                        env.appVersion = packageJson.version
-                        echo "Package version: ${env.appVersion}"
+                        def appVersion = readJSON(file: 'package.json').version
+                        echo "Package version: ${appVersion}"
+                        // Pass this local variable to Docker stage
+                        env.APP_VERSION = appVersion  // optional, if you want to reuse env elsewhere
                     }
                 }
             }
@@ -53,21 +54,24 @@ def call(Map configMap) {
                 }
             }
 
-            stage('Docker Build & Push') {
+           stage('Docker Build & Push') {
                 steps {
                     script {
+                        def imageName = "${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com/${env.PROJECT}/${env.COMPONENT}:${env.APP_VERSION}"
+                        echo "Building image: ${imageName}"
+                        
                         withAWS(credentials: 'aws-creds', region: env.REGION) {
                             sh """
                                 aws ecr get-login-password --region ${env.REGION} \
                                     | docker login --username AWS --password-stdin ${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com
-
-                                docker build -t ${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com/${env.PROJECT}/${env.COMPONENT}:${env.appVersion} .
-                                docker push ${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com/${env.PROJECT}/${env.COMPONENT}:${env.appVersion}
+                                docker build -t ${imageName} .
+                                docker push ${imageName}
                             """
                         }
                     }
                 }
             }
+
 
             stage('Trigger Deploy') {
                 when { expression { params.deploy } }
