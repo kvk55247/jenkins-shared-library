@@ -1,34 +1,39 @@
-def call(Map configMap) {
+def call(Map config) {
     pipeline {
-        agent {
-            label 'AGENT-1'
-        }
+        agent { label 'roboshop-agent' }
 
         environment {
-            REGION = "us-east-1"
-            ACC_ID = "784585544641"
-            appVersion = ''
-            PROJECT = "${configMap.project}"      // Use configMap
-            COMPONENT = "${configMap.component}"  // Use configMap
+            AWS_ACCOUNT_ID = '784585544641'
+            AWS_REGION     = 'us-east-1'
+            COMPONENT      = config.component
+            PROJECT        = config.project
         }
 
         options {
+            skipDefaultCheckout()
             timeout(time: 30, unit: 'MINUTES')
-            disableConcurrentBuilds()
-        }
-
-        parameters {
-            booleanParam(name: 'deploy', defaultValue: false, description: 'Toggle this value')
         }
 
         stages {
 
+            stage('Clean Workspace') {
+                steps {
+                    deleteDir()
+                }
+            }
+
+            stage('Checkout SCM') {
+                steps {
+                    checkout scm
+                }
+            }
+
             stage('Read package.json') {
                 steps {
                     script {
-                        def packageJson = readJSON file: 'package.json'
-                        env.appVersion = packageJson.version
-                        echo "Building ${env.PROJECT}/${env.COMPONENT}:${env.appVersion}"
+                        def pkg = readJSON file: 'package.json'
+                        env.VERSION = pkg.version
+                        echo "Package version: ${env.VERSION}"
                     }
                 }
             }
@@ -39,62 +44,41 @@ def call(Map configMap) {
                 }
             }
 
-            stage('Unit Testing') {
+            stage('Unit Tests') {
                 steps {
                     sh 'echo "Running unit tests..."'
+                    // Add actual test command if needed
                 }
             }
 
             stage('Docker Build & Push') {
                 steps {
                     script {
-                        echo "Docker repository: ${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com/${env.PROJECT}/${env.COMPONENT}:${env.appVersion}"
-                        withAWS(credentials: 'aws-creds', region: env.REGION) {
-                            sh """
-                                aws ecr get-login-password --region ${env.REGION} \
-                                    | docker login --username AWS --password-stdin ${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com
+                        def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/roboshop/${COMPONENT}:${VERSION}"
+                        echo "Building image: ${imageName}"
 
-                                docker build -t ${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com/${env.PROJECT}/${env.COMPONENT}:${env.appVersion} .
-                                docker push ${env.ACC_ID}.dkr.ecr.${env.REGION}.amazonaws.com/${env.PROJECT}/${env.COMPONENT}:${env.appVersion}
+                        withAWS(region: "${AWS_REGION}", credentials: 'aws-jenkins-cred') {
+                            sh """
+                                aws ecr get-login-password --region ${AWS_REGION} | \
+                                docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                             """
                         }
+
+                        sh "docker build -t ${imageName} ."
+                        sh "docker push ${imageName}"
                     }
                 }
             }
-
-            stage('Trigger Deploy') {
-                when {
-                    expression { params.deploy }
-                }
-                steps {
-                    script {
-                        build job: "../${env.COMPONENT}-cd",
-                              parameters: [
-                                  string(name: 'appVersion', value: env.appVersion),
-                                  string(name: 'deploy_to', value: 'dev')
-                              ],
-                              propagate: false,
-                              wait: false
-                    }
-                }
-            }
-
         }
 
         post {
             always {
-                echo 'Cleaning workspace...'
-                deleteDir()
-            }
-            success {
-                echo 'Pipeline succeeded!'
-            }
-            failure {
-                echo 'Pipeline failed!'
+                cleanWs()
             }
         }
     }
 }
+
 
 
 
