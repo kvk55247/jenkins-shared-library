@@ -154,7 +154,7 @@ def call(Map configMap){
                 steps {
                     script {
                         //build job: 'catalogue-cd',
-                        build job: "../${COMPONENT}-deploy",
+                        build job: "../${COMPONENT}-cd",
                         parameters: [
                             string(name: 'appVersion', value: "${appVersion}"),
                             string(name: 'deploy_to', value: 'dev')
@@ -181,39 +181,3 @@ def call(Map configMap){
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
