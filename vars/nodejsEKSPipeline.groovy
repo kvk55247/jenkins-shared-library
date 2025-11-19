@@ -1,99 +1,4 @@
-def call(Map config) {
-    pipeline {
-        agent { label 'roboshop-agent' }
-
-        environment {
-            AWS_ACCOUNT_ID = '784585544641'
-            AWS_REGION     = 'us-east-1'
-            COMPONENT      = config.component
-            PROJECT        = config.project
-        }
-
-        options {
-            skipDefaultCheckout()
-            timeout(time: 30, unit: 'MINUTES')
-        }
-
-        stages {
-
-            stage('Clean Workspace') {
-                steps {
-                    deleteDir()
-                }
-            }
-
-            stage('Checkout SCM') {
-                steps {
-                    checkout scm
-                }
-            }
-
-            stage('Read package.json') {
-                steps {
-                    script {
-                        def pkg = readJSON file: 'package.json'
-                        env.VERSION = pkg.version
-                        echo "Package version: ${env.VERSION}"
-                    }
-                }
-            }
-
-            stage('Install Dependencies') {
-                steps {
-                    sh 'npm install'
-                }
-            }
-
-            stage('Unit Tests') {
-                steps {
-                    sh 'echo "Running unit tests..."'
-                    // Add actual test command if needed
-                }
-            }
-
-            stage('Docker Build & Push') {
-                steps {
-                    script {
-                        def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/roboshop/${COMPONENT}:${VERSION}"
-                        echo "Building image: ${imageName}"
-
-                        withAWS(region: "${AWS_REGION}", credentials: 'aws-jenkins-cred') {
-                            sh """
-                                aws ecr get-login-password --region ${AWS_REGION} | \
-                                docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                            """
-                        }
-
-                        sh "docker build -t ${imageName} ."
-                        sh "docker push ${imageName}"
-                    }
-                }
-            }
-        }
-
-        post {
-            always {
-                cleanWs()
-            }
-        }
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* def call(Map configMap){
+def call(Map configMap){
     pipeline {
         agent  {
             label 'AGENT-1'
@@ -140,7 +45,7 @@ def call(Map config) {
                     """
                     }
                 }
-            } */
+            }
             /* stage('Sonar Scan') {
                 environment {
                     scannerHome = tool 'sonar-7.2'
@@ -195,7 +100,7 @@ def call(Map config) {
                     }
                 }
             }*/
-           /*  stage('Docker Build') {
+            stage('Docker Build') {
                 steps {
                     script {
                         withAWS(credentials: 'aws-creds', region: 'us-east-1') {
@@ -208,7 +113,7 @@ def call(Map config) {
                         }
                     }
                 }
-            } */
+            }
             /* stage('Check Scan Results') {
                 steps {
                     script {
@@ -243,14 +148,14 @@ def call(Map config) {
                     }
                 }
             } */
-           /*  stage('Trigger Deploy') {
+            stage('Trigger Deploy') {
                 when{
                     expression { params.deploy }
                 }
                 steps {
                     script {
                         //build job: 'catalogue-cd',
-                        build job: "../${COMPONENT}-cd",
+                        build job: "../${COMPONENT}-deploy",
                         parameters: [
                             string(name: 'appVersion', value: "${appVersion}"),
                             string(name: 'deploy_to', value: 'dev')
@@ -259,10 +164,10 @@ def call(Map config) {
                         wait: false // VPC will not wait for SG pipeline completion
                     }
                 }
-            } */
+            }
             
-        
-/* 
+        }
+
         post { 
             always { 
                 echo 'I will always say Hello again!'
@@ -274,8 +179,23 @@ def call(Map config) {
             failure { 
                 echo 'Hello Failure'
             }
-        } */
-    
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
